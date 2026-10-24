@@ -5,7 +5,7 @@ An AI coding assistant you use from your phone. It reads your GitHub code, write
 You get 3 files:
 - `index.html`: the chat app (goes on GitHub Pages)
 - `worker.js`: the small server (goes on Cloudflare, holds your secret keys)
-- `README.md`: this guide
+- `README.md`: this guide.
 
 Total cost: free to start. Time: about 20 minutes.
 
