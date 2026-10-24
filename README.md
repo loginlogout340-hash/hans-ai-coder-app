@@ -47,12 +47,6 @@ Total cost: free to start. Time: about 20 minutes.
 
 ---
 
-## Using it
-Try messages like:
-- "Show me the files in this repo."
-- "Find why the game crashes when I add a player, and fix it."
-- "Add a dark mode to my website."
-
 When the AI changes code you see a **Proposed changes** card. Tap **View** on each file to see exactly what changes (red is removed, green is added). Then:
 - **Approve and push** makes one commit to your repo. You can tick "Push to a new branch" to keep your main branch untouched.
 - **Reject** throws the proposal away.
