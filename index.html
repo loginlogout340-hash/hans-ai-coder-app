@@ -63,6 +63,17 @@ footer{display:flex;align-items:flex-end;gap:8px;padding:8px 10px calc(10px + en
 #inp{flex:1;resize:none;max-height:140px;background:var(--panel);border:1px solid var(--line);border-radius:18px;padding:11px 14px;outline:none}
 #send{width:46px;height:46px;border-radius:50%;border:0;background:var(--acc);color:#2a1206;font-size:20px;font-weight:900;flex:none}
 #send:disabled{opacity:.45}
+.chips{display:flex;flex-wrap:wrap;gap:6px;padding:6px 10px 0}
+.chips:empty{display:none}
+.ch2{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:3px 4px 3px 10px;font-size:13px;display:flex;align-items:center;gap:4px;max-width:100%}
+.ch2 span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:200px}
+.ch2 button{background:none;border:0;color:var(--bad);font-weight:900;padding:2px 6px}
+#clip{width:42px;height:46px;border:0;background:none;font-size:22px;flex:none;color:var(--tx)}
+.att{display:flex;flex-wrap:wrap;gap:4px;margin-top:6px}
+.att span{font-size:12px;background:#0003;border-radius:10px;padding:2px 8px}
+.tt{position:fixed;left:50%;transform:translateX(-50%);bottom:100px;background:#000d;color:#fff;padding:8px 14px;border-radius:99px;font-size:14px;z-index:20;max-width:90%}
+.live{font-size:13px;color:var(--mut);margin-top:6px}
+.live div{padding:1px 0}
 .empty{color:var(--mut);text-align:center;margin-top:12vh;padding:0 20px}
 .empty b{display:block;color:var(--tx);font-size:20px;margin-bottom:8px}
 .sug{display:flex;flex-direction:column;gap:8px;margin-top:18px}
@@ -89,11 +100,15 @@ footer{display:flex;align-items:flex-end;gap:8px;padding:8px 10px calc(10px + en
     <button class="ib" id="bSet" aria-label="Settings">⚙</button>
   </header>
   <div id="msgs"></div>
+  <div class="chips" id="chips"></div>
   <footer>
+    <button id="clip" aria-label="Attach a file or picture">📎</button>
     <textarea id="inp" rows="1" placeholder="Ask me to build or fix something…"></textarea>
     <button id="send" aria-label="Send">➤</button>
   </footer>
 </div>
+<input type="file" id="file" multiple class="hidden">
+<div class="tt hidden" id="tt"></div>
 <div id="ov" class="ov hidden"><div class="sh" id="sh"></div></div>
 
 <script>
@@ -173,7 +188,7 @@ footer{display:flex;align-items:flex-end;gap:8px;padding:8px 10px calc(10px + en
 
   /* ---------- screens ---------- */
   function chipText() { var s = D.settings; return s.repo ? s.repo + (s.branch ? ' · ' + s.branch : '') : 'No repository chosen'; }
-  var SUG = ['Show me the files in this repo', 'Find a bug in my code and fix it', 'Add a dark mode to my website'];
+  var SUG = ['Show me the files in this repo', 'Check my latest build and fix any errors', 'Find a bug in my code and fix it'];
   function propHtml(p, i) {
     var h = '<div class="prop"><div class="ph">📝 Proposed changes</div><div class="ps">' + esc(p.summary) + '</div>';
     p.files.forEach(function (f, k) {
@@ -185,7 +200,7 @@ footer{display:flex;align-items:flex-end;gap:8px;padding:8px 10px calc(10px + en
       h += '<label class="chk"><input type="checkbox" id="nb' + i + '"> Push to a new branch, not ' + esc(D.settings.branch || 'the main branch') + '</label>';
       h += '<div class="pb"><button class="btn ok" data-a="ok" data-i="' + i + '"' + (p.working ? ' disabled' : '') + '>' + (p.working ? 'Pushing…' : '✅ Approve and push') + '</button><button class="btn" data-a="no" data-i="' + i + '"' + (p.working ? ' disabled' : '') + '>❌ Reject</button></div>';
       if (p.error) h += '<div class="pst bad">⚠️ ' + esc(p.error) + '</div>';
-    } else if (p.state === 'pushed') h += '<div class="pst good">✅ Pushed to ' + esc(p.branch || '') + ' · <a href="' + esc(p.url) + '" target="_blank" rel="noopener">View commit</a></div>';
+    } else if (p.state === 'pushed') h += '<div class="pst good">✅ Pushed to ' + esc(p.branch || '') + ' · <a href="' + esc(p.url) + '" target="_blank" rel="noopener">View commit</a> <button class="lnk" data-a="build">🔨 Check my build</button></div>';
     else h += '<div class="pst">❌ Rejected. Nothing was pushed.</div>';
     return h + '</div>';
   }
@@ -197,14 +212,14 @@ footer{display:flex;align-items:flex-end;gap:8px;padding:8px 10px calc(10px + en
         '<div class="sug">' + SUG.map(function (s) { return '<button data-a="sug" data-t="' + esc(s) + '">' + esc(s) + '</button>'; }).join('') + '</div></div>';
     }
     c.msgs.forEach(function (m, i) {
-      if (m.role === 'user') h += '<div class="m u"><div class="b">' + esc(m.text).replace(/\n/g, '<br>') + '</div></div>';
+      if (m.role === 'user') h += '<div class="m u"><div class="b">' + esc(m.text).replace(/\n/g, '<br>') + (m.attach && m.attach.length ? '<div class="att">' + m.attach.map(function (a) { return '<span>📎 ' + esc(a.name) + '</span>'; }).join('') + '</div>' : '') + '</div></div>';
       else {
         h += '<div class="m a' + (m.error ? ' err' : '') + '"><div class="b">';
         if (m.steps && m.steps.length) h += '<div class="steps">' + m.steps.map(function (s) { return '<div>' + esc(s) + '</div>'; }).join('') + '</div>';
         h += md(m.text) + (m.proposal ? propHtml(m.proposal, i) : '') + (m.via ? '<div class="via">⚡ ' + esc(m.via) + '</div>' : '') + '</div></div>';
       }
     });
-    if (busy) h += '<div class="m a"><div class="b"><span class="dots"><span></span><span></span><span></span></span> <span style="color:var(--mut);font-size:14px">Working…</span></div></div>';
+    if (busy) h += '<div class="m a"><div class="b"><span class="dots"><span></span><span></span><span></span></span> <span id="live">' + liveHtml() + '</span></div></div>';
     box.innerHTML = h;
     box.scrollTop = box.scrollHeight;
     $('send').disabled = busy;
@@ -225,22 +240,93 @@ footer{display:flex;align-items:flex-end;gap:8px;padding:8px 10px calc(10px + en
     } finally { clearTimeout(to); }
   }
   function history(c) {
-    return c.msgs.filter(function (m) { return !m.error; }).slice(-16).map(function (m) {
+    var list = c.msgs.filter(function (m) { return !m.error; }).slice(-16), last = -1;
+    list.forEach(function (m, k) { if (m.role === 'user') last = k; });
+    return list.map(function (m, k) {
       var t = m.text;
+      if (m.attach && m.attach.length) {
+        t += k === last ? m.attach.filter(function (a) { return a.text != null; }).map(function (a) { return '\n\n[Attached file: ' + a.name + ']\n```\n' + a.text + '\n```'; }).join('') : '\n\n[Attached earlier: ' + m.attach.map(function (a) { return a.name; }).join(', ') + ']';
+      }
       if (m.proposal) t += '\n(' + (m.proposal.state === 'pushed' ? 'The user approved this proposal and it was pushed.' : m.proposal.state === 'rejected' ? 'The user rejected this proposal.' : 'This proposal is waiting for the user to approve it.') + ')';
       return { role: m.role, text: t };
     });
   }
-  async function send(text) {
-    var t = (text || $('inp').value).trim(); if (!t || busy) return;
-    if (!D.settings.url || !D.settings.pass) { openSettings(); return; }
-    var c = chat(); c.msgs.push({ role: 'user', text: t }); if (c.title === 'New chat') c.title = t.slice(0, 40);
-    $('inp').value = ''; grow(); busy = true; save(); render();
+
+  /* ---------- attachments: text files and pictures ---------- */
+  var pending = [], live = null, liveTimer = null;
+  function note(t) { var e = $('tt'); e.textContent = t; e.classList.remove('hidden'); clearTimeout(note.t); note.t = setTimeout(function () { e.classList.add('hidden'); }, 2800); }
+  function renderChips() {
+    $('chips').innerHTML = pending.map(function (a, i) { return '<div class="ch2"><span>' + (a.kind === 'image' ? '🖼️ ' : '📄 ') + esc(a.name) + '</span><button data-a="unattach" data-i="' + i + '" aria-label="Remove">✕</button></div>'; }).join('');
+  }
+  function addFile(f) {
+    if (pending.length >= 6) return note('You can attach up to 6 files.');
+    if (/^image\//.test(f.type)) {
+      var img = new Image(), url = URL.createObjectURL(f);
+      img.onload = function () {
+        var sc = Math.min(1, 1280 / Math.max(img.width, img.height)), cv = document.createElement('canvas');
+        cv.width = Math.max(1, Math.round(img.width * sc)); cv.height = Math.max(1, Math.round(img.height * sc));
+        cv.getContext('2d').drawImage(img, 0, 0, cv.width, cv.height);
+        pending.push({ name: f.name || 'picture.jpg', kind: 'image', mime: 'image/jpeg', data: cv.toDataURL('image/jpeg', 0.82).split(',')[1] });
+        URL.revokeObjectURL(url); renderChips();
+      };
+      img.onerror = function () { URL.revokeObjectURL(url); note('Could not open that picture.'); };
+      img.src = url; return;
+    }
+    if (f.size > 300000) return note(f.name + ' is too big (limit 300 KB). Attach a smaller part of it.');
+    var r = new FileReader();
+    r.onload = function () {
+      var t = String(r.result || '');
+      if (t.indexOf('\u0000') >= 0) return note(f.name + ' is not a text file.');
+      pending.push({ name: f.name, kind: 'text', text: t.length > 40000 ? t.slice(0, 40000) + '\n...(cut here, the file is longer)' : t }); renderChips();
+    };
+    r.onerror = function () { note('Could not read ' + f.name); };
+    r.readAsText(f);
+  }
+  function liveHtml() {
+    if (!live) return '<span style="color:var(--mut);font-size:14px">Working…</span>';
+    var secs = Math.round((Date.now() - live.t0) / 1000);
+    return '<span style="color:var(--mut);font-size:14px">Working… ' + secs + 's' + (live.via ? ' · ' + esc(live.via) : '') + '</span>' + (live.steps.length ? '<div class="live">' + live.steps.slice(-4).map(function (x) { return '<div>' + esc(x) + '</div>'; }).join('') + '</div>' : '');
+  }
+  function tickLive() { var e = $('live'); if (e) e.innerHTML = liveHtml(); }
+
+  /* the answer arrives as live lines, so you see each step while the AI works */
+  async function chatStream(body) {
+    var s = D.settings, ctl = new AbortController(), to = setTimeout(function () { ctl.abort(); }, 170000);
     try {
-      var r = await api('/chat', { repo: D.settings.repo, branch: D.settings.branch, messages: history(c) });
+      var res = await fetch(s.url.replace(/\/+$/, '') + '/chat', { method: 'POST', headers: { 'content-type': 'application/json', 'x-app-pass': s.pass, 'x-stream': '1' }, body: JSON.stringify(body), signal: ctl.signal });
+      if (!res.ok) { var j = await res.json().catch(function () { return {}; }); throw new Error(j.error || 'Error ' + res.status); }
+      var ct = res.headers.get('content-type') || '';
+      if (ct.indexOf('ndjson') < 0 || !res.body || !res.body.getReader) { var j2 = await res.json(); if (j2.error && !j2.reply) throw new Error(j2.error); return j2; }
+      var rd = res.body.getReader(), dec = new TextDecoder(), buf = '', done = null;
+      function take(l) {
+        if (!l.trim()) return; var ev; try { ev = JSON.parse(l); } catch (e) { return; }
+        if (ev.t === 'done') done = ev;
+        else if (live) { if (ev.t === 'step') live.steps.push(ev.v); else if (ev.t === 'via') live.via = ev.v; tickLive(); }
+      }
+      for (;;) { var x = await rd.read(); if (x.done) break; buf += dec.decode(x.value, { stream: true }); var lines = buf.split('\n'); buf = lines.pop(); lines.forEach(take); }
+      take(buf);
+      if (!done) throw new Error('The connection closed before the answer finished. Try again.');
+      return done;
+    } catch (e) {
+      if (e.name === 'AbortError') throw new Error('That took too long. Try a smaller task.');
+      if (e instanceof TypeError) throw new Error('Cannot reach the Worker. Check its address and your internet.');
+      throw e;
+    } finally { clearTimeout(to); }
+  }
+  async function send(text) {
+    var t = (text || $('inp').value).trim(); if (!t && !pending.length) return; if (busy) return;
+    if (!t) t = 'Please look at the attached ' + (pending.every(function (a) { return a.kind === 'image'; }) ? 'picture' : 'file') + '.';
+    if (!D.settings.url || !D.settings.pass) { openSettings(); return; }
+    var c = chat(), files = pending.slice(); pending = []; renderChips();
+    var imgs = files.filter(function (a) { return a.kind === 'image'; }).map(function (a) { return { name: a.name, mime: a.mime, data: a.data }; });
+    var att = files.map(function (a) { return a.kind === 'image' ? { name: a.name } : { name: a.name, text: a.text }; });
+    c.msgs.push({ role: 'user', text: t, attach: att.length ? att : undefined }); if (c.title === 'New chat') c.title = t.slice(0, 40);
+    $('inp').value = ''; grow(); busy = true; live = { t0: Date.now(), steps: [], via: '' }; clearInterval(liveTimer); liveTimer = setInterval(tickLive, 1000); save(); render();
+    try {
+      var r = await chatStream({ repo: D.settings.repo, branch: D.settings.branch, messages: history(c), images: imgs });
       c.msgs.push({ role: 'assistant', text: r.reply || 'Done.', steps: r.steps || [], proposal: r.proposal ? { summary: r.proposal.summary, files: r.proposal.files, state: 'pending' } : null, via: r.via || '' });
     } catch (e) { c.msgs.push({ role: 'assistant', text: '⚠️ ' + e.message, error: true }); }
-    busy = false; save(); render();
+    busy = false; live = null; clearInterval(liveTimer); save(); render();
   }
   async function approve(i) {
     var c = chat(), m = c.msgs[i], p = m && m.proposal; if (!p || p.working) return;
@@ -300,6 +386,8 @@ footer{display:flex;align-items:flex-end;gap:8px;padding:8px 10px calc(10px + en
   $('inp').addEventListener('input', grow);
   $('inp').addEventListener('keydown', function (e) { if (e.key === 'Enter' && !e.shiftKey && window.matchMedia('(pointer:fine)').matches) { e.preventDefault(); send(); } });
   $('send').addEventListener('click', function () { send(); });
+  $('clip').addEventListener('click', function () { $('file').value = ''; $('file').click(); });
+  $('file').addEventListener('change', function () { Array.prototype.forEach.call($('file').files || [], addFile); });
   $('bSet').addEventListener('click', function () { openSettings(); });
   $('bChats').addEventListener('click', openChats);
   $('bNew').addEventListener('click', function () { var c = { id: uid(), title: 'New chat', msgs: [] }; D.chats.unshift(c); D.cur = c.id; save(); render(); });
@@ -314,10 +402,13 @@ footer{display:flex;align-items:flex-end;gap:8px;padding:8px 10px calc(10px + en
     else if (a === 'ok') approve(i);
     else if (a === 'no') { var p = chat().msgs[i].proposal; if (p) { p.state = 'rejected'; save(); render(); } }
     else if (a === 'sug') send(b.dataset.t);
+    else if (a === 'build') send('Check the latest GitHub Actions build for this repo. If it failed, find the cause and propose a fix.');
+    else if (a === 'unattach') { pending.splice(i, 1); renderChips(); }
     else if (a === 'newchat') { $('bNew').click(); closeSheet(); }
     else if (a === 'open') { D.cur = b.dataset.id; save(); closeSheet(); render(); }
     else if (a === 'del') { D.chats = D.chats.filter(function (c) { return c.id !== b.dataset.id; }); if (D.cur === b.dataset.id) D.cur = null; save(); render(); openChats(); }
   });
+  window.__back = function () { if (!$('ov').classList.contains('hidden')) { closeSheet(); return true; } return false; };
   render();
   if (!D.settings.url) setTimeout(function () { openSettings('Welcome! Connect your Worker to begin.'); }, 300);
 })();
