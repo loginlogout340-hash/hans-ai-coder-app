@@ -293,7 +293,7 @@ footer{display:flex;align-items:flex-end;gap:8px;padding:8px 10px calc(10px + en
   async function chatStream(body) {
     var s = D.settings, ctl = new AbortController(), to = setTimeout(function () { ctl.abort(); }, 170000);
     try {
-      var res = await fetch(s.url.replace(/\/+$/, '') + '/chat', { method: 'POST', headers: { 'content-type': 'application/json', 'x-app-pass': s.pass, 'x-stream': '1' }, body: JSON.stringify(body), signal: ctl.signal });
+      var res = await fetch(s.url.replace(/\/+$/, '') + '/chat?stream=1', { method: 'POST', headers: { 'content-type': 'application/json', 'x-app-pass': s.pass }, body: JSON.stringify(body), signal: ctl.signal });
       if (!res.ok) { var j = await res.json().catch(function () { return {}; }); throw new Error(j.error || 'Error ' + res.status); }
       var ct = res.headers.get('content-type') || '';
       if (ct.indexOf('ndjson') < 0 || !res.body || !res.body.getReader) { var j2 = await res.json(); if (j2.error && !j2.reply) throw new Error(j2.error); return j2; }
