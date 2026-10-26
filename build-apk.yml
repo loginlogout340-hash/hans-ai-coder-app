@@ -1,0 +1,212 @@
+name: Build Hans AI Coder APK
+
+# This one file builds the whole Android app by itself.
+# It only needs index.html in the main folder of the repo.
+
+on:
+  push:
+    branches: [main, master]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+
+      - name: Create the Android project
+        run: |
+          set -e
+          mkdir -p app/src/main/assets/www app/src/main/java/com/hans/aicoder app/src/main/res/drawable app/src/main/res/mipmap-anydpi-v26 app/src/main/res/values
+          cat > settings.gradle <<'HANS_EOF'
+          pluginManagement {
+              repositories { google(); mavenCentral(); gradlePluginPortal() }
+          }
+          dependencyResolutionManagement {
+              repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+              repositories { google(); mavenCentral() }
+          }
+          rootProject.name = "HansAICoder"
+          include ':app'
+          HANS_EOF
+          cat > build.gradle <<'HANS_EOF'
+          plugins {
+              id 'com.android.application' version '8.5.2' apply false
+          }
+          HANS_EOF
+          cat > gradle.properties <<'HANS_EOF'
+          org.gradle.jvmargs=-Xmx2048m -Dfile.encoding=UTF-8
+          android.useAndroidX=false
+          android.nonTransitiveRClass=true
+          HANS_EOF
+          cat > app/build.gradle <<'HANS_EOF'
+          plugins {
+              id 'com.android.application'
+          }
+
+          android {
+              namespace 'com.hans.aicoder'
+              compileSdk 34
+
+              defaultConfig {
+                  applicationId 'com.hans.aicoder'
+                  minSdk 26
+                  targetSdk 34
+                  versionCode 1
+                  versionName "1.0"
+              }
+
+              buildTypes {
+                  debug { debuggable false }
+                  release { minifyEnabled false }
+              }
+              compileOptions {
+                  sourceCompatibility JavaVersion.VERSION_17
+                  targetCompatibility JavaVersion.VERSION_17
+              }
+              lint { abortOnError false }
+          }
+          HANS_EOF
+          cat > app/src/main/AndroidManifest.xml <<'HANS_EOF'
+          <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+          <uses-permission android:name="android.permission.INTERNET"/>
+          <application android:allowBackup="true" android:icon="@mipmap/ic_launcher" android:roundIcon="@mipmap/ic_launcher" android:label="Hans AI Coder" android:theme="@style/AppTheme">
+          <activity android:name=".MainActivity" android:exported="true" android:windowSoftInputMode="adjustResize" android:configChanges="orientation|screenSize|keyboardHidden|smallestScreenSize|screenLayout" android:screenOrientation="portrait">
+          <intent-filter>
+          <action android:name="android.intent.action.MAIN"/>
+          <category android:name="android.intent.category.LAUNCHER"/>
+          </intent-filter>
+          </activity>
+          </application>
+          </manifest>
+          HANS_EOF
+          cat > app/src/main/java/com/hans/aicoder/MainActivity.java <<'HANS_EOF'
+          package com.hans.aicoder;
+
+          import android.app.Activity;
+          import android.content.Intent;
+          import android.graphics.Color;
+          import android.net.Uri;
+          import android.os.Bundle;
+          import android.view.View;
+          import android.view.Window;
+          import android.webkit.ValueCallback;
+          import android.webkit.WebChromeClient;
+          import android.webkit.WebSettings;
+          import android.webkit.WebView;
+          import android.webkit.WebViewClient;
+
+          public class MainActivity extends Activity {
+              private WebView web;
+              private ValueCallback<Uri[]> filePick;
+
+              @Override
+              protected void onCreate(Bundle b) {
+                  super.onCreate(b);
+                  Window w = getWindow();
+                  w.setStatusBarColor(Color.parseColor("#1f1e1d"));
+                  w.setNavigationBarColor(Color.parseColor("#1f1e1d"));
+                  web = new WebView(this);
+                  web.setBackgroundColor(Color.parseColor("#1f1e1d"));
+                  setContentView(web);
+                  WebSettings s = web.getSettings();
+                  s.setJavaScriptEnabled(true);
+                  s.setDomStorageEnabled(true);          // localStorage = your chats and settings
+                  s.setAllowFileAccess(true);
+                  s.setAllowContentAccess(false);
+                  s.setSupportZoom(false);
+                  s.setBuiltInZoomControls(false);
+                  web.setOverScrollMode(View.OVER_SCROLL_NEVER);
+                  web.setWebViewClient(new WebViewClient());
+                  // lets the app open the phone's file chooser (attach a file or picture)
+                  web.setWebChromeClient(new WebChromeClient() {
+                      @Override
+                      public boolean onShowFileChooser(WebView v, ValueCallback<Uri[]> cb, FileChooserParams params) {
+                          if (filePick != null) filePick.onReceiveValue(null);
+                          filePick = cb;
+                          try {
+                              startActivityForResult(params.createIntent(), 77);
+                          } catch (Exception e) {
+                              filePick = null;
+                              return false;
+                          }
+                          return true;
+                      }
+                  });
+                  web.loadUrl("file:///android_asset/www/index.html");
+              }
+
+              @Override
+              public void onBackPressed() {
+                  // let the app close its sheets first; exit only if it says nothing was open
+                  web.evaluateJavascript("(function(){try{return window.__back()?'1':'0'}catch(e){return '0'}})()", v -> {
+                      if (v == null || !v.contains("1")) finish();
+                  });
+              }
+
+              @Override
+              protected void onActivityResult(int req, int res, Intent data) {
+                  super.onActivityResult(req, res, data);
+                  if (req == 77 && filePick != null) {
+                      filePick.onReceiveValue(WebChromeClient.FileChooserParams.parseResult(res, data));
+                      filePick = null;
+                  }
+              }
+
+              @Override protected void onPause() { super.onPause(); web.onPause(); }
+              @Override protected void onResume() { super.onResume(); web.onResume(); }
+          }
+          HANS_EOF
+          cat > app/src/main/res/drawable/ic_fg.xml <<'HANS_EOF'
+          <vector xmlns:android="http://schemas.android.com/apk/res/android" android:width="108dp" android:height="108dp" android:viewportWidth="108" android:viewportHeight="108">
+              <path android:fillColor="#E07B4F" android:pathData="M30,34 L78,34 C82,34 84,36 84,40 L84,62 C84,66 82,68 78,68 L52,68 L38,80 L38,68 L30,68 C26,68 24,66 24,62 L24,40 C24,36 26,34 30,34 Z"/>
+              <path android:fillColor="#1F1E1D" android:pathData="M42,44 L36,51 L42,58 L45,55.5 L41.5,51 L45,46.5 Z M66,44 L63,46.5 L66.5,51 L63,55.5 L66,58 L72,51 Z M55,43 L58.5,43 L52.5,59 L49,59 Z"/>
+          </vector>
+          HANS_EOF
+          cat > app/src/main/res/mipmap-anydpi-v26/ic_launcher.xml <<'HANS_EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
+              <background android:drawable="@color/icon_bg"/>
+              <foreground android:drawable="@drawable/ic_fg"/>
+          </adaptive-icon>
+          HANS_EOF
+          cat > app/src/main/res/values/colors.xml <<'HANS_EOF'
+          <resources><color name="icon_bg">#1F1E1D</color></resources>
+          HANS_EOF
+          cat > app/src/main/res/values/styles.xml <<'HANS_EOF'
+          <resources>
+              <style name="AppTheme" parent="android:Theme.Material.NoActionBar">
+                  <item name="android:windowBackground">@android:color/black</item>
+              </style>
+          </resources>
+          HANS_EOF
+          cp index.html app/src/main/assets/www/index.html
+          find app -type f
+
+      - name: Build APK
+        run: gradle assembleDebug --no-daemon
+
+      - name: Rename APK
+        run: cp app/build/outputs/apk/debug/app-debug.apk HansAICoder.apk
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: HansAICoder-apk
+          path: HansAICoder.apk
+
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh release create "v1.0.${{ github.run_number }}" HansAICoder.apk --title "Hans AI Coder v1.0.${{ github.run_number }}" --notes "Download HansAICoder.apk on your phone and install it."
